@@ -164,4 +164,12 @@
         </resources>
     </route>
 
+    <!-- Test Points API -->
+    <route url="/apimobile/cart/test-points" method="GET">
+        <service class="Josequal\APIMobile\Controller\Cart\TestPoints" method="execute"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
 </routes>
