@@ -60,6 +60,11 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
 
     }
 
+    /**
+     * Get customer points with detailed information
+     *
+     * @return array
+     */
     function getCustomerPoints(){
 
         $info = $this->successStatus('Points Total');
@@ -91,6 +96,12 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         return $info;
     }
 
+    /**
+     * Get loyalty level based on points
+     *
+     * @param int $points
+     * @return string
+     */
     private function getLoyaltyLevel($points) {
         if ($points >= 3000) {
             return 'Platinum';
@@ -101,6 +112,12 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         }
     }
 
+    /**
+     * Get next level points requirement
+     *
+     * @param string $currentLevel
+     * @return int
+     */
     private function getNextLevelPoints($currentLevel) {
         switch ($currentLevel) {
             case 'Silver':
@@ -114,11 +131,24 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         }
     }
 
+    /**
+     * Calculate progress percentage to next level
+     *
+     * @param int $currentPoints
+     * @param int $nextLevelPoints
+     * @return int
+     */
     private function calculateProgressPercentage($currentPoints, $nextLevelPoints) {
         if ($nextLevelPoints <= 0) return 100;
         return min(100, round(($currentPoints / $nextLevelPoints) * 100));
     }
 
+    /**
+     * Get points history for customer
+     *
+     * @param int $customerId
+     * @return array
+     */
     private function getPointsHistory($customerId) {
         $db = $this->objectManager->get('Magento\Framework\App\ResourceConnection');
 
@@ -148,6 +178,12 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         return $history;
     }
 
+    /**
+     * Get action description based on action type
+     *
+     * @param string $action
+     * @return string
+     */
     private function getActionDescription($action) {
         switch ($action) {
             case 'order':
@@ -163,6 +199,12 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         }
     }
 
+    /**
+     * Get action icon based on action type
+     *
+     * @param string $action
+     * @return string
+     */
     private function getActionIcon($action) {
         switch ($action) {
             case 'order':
@@ -178,6 +220,12 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         }
     }
 
+    /**
+     * Apply points to cart or remove them
+     *
+     * @param array $data
+     * @return array
+     */
     function applyPoints($data){
         if(!isset($data['remove']) && !isset($data['points'])){
 			return $this->errorStatus(["Number of points is required"]);
@@ -257,6 +305,11 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         return $info;
     }
 
+    /**
+     * Send points reminder to customers with high points
+     *
+     * @return bool
+     */
     public function sendPointsReminder(){
         $db = $this->objectManager->get('Magento\Framework\App\ResourceConnection');
         $notificationController = $this->objectManager->get('Josequal\APIMobile\Controller\Adminhtml\Notification\Save');

@@ -10,6 +10,11 @@ class Points extends \Josequal\APIMobile\Controller\Action\Action {
 		parent::__construct($context, $request);
 	}
 
+	/**
+	 * Execute method to get customer points
+	 *
+	 * @return void
+	 */
 	public function execute() {
         $this->auth();
 

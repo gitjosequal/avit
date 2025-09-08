@@ -10,6 +10,11 @@ class PointsReminder extends \Josequal\APIMobile\Controller\Action\Action {
 		parent::__construct($context, $request);
 	}
 
+	/**
+	 * Execute method to send points reminder to customers
+	 *
+	 * @return void
+	 */
 	public function execute() {
 
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance();

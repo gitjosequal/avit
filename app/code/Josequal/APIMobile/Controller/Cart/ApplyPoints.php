@@ -10,6 +10,11 @@ class ApplyPoints extends \Josequal\APIMobile\Controller\Action\Action {
 		parent::__construct($context, $request);
 	}
 
+	/**
+	 * Execute method to apply points to cart
+	 *
+	 * @return void
+	 */
 	public function execute() {
         $this->auth();
         $data = $this->getData();

@@ -49,11 +49,11 @@ curl -X GET https://avit.josequal.net/apimobile/cart/points \
     "points_to_next_level": 1500,
     "progress_percentage": 50,
     "points_history": [
-      {
-        "points": "+240",
-        "action": "Online Order"
-        "description": "Suite 2 pieces, hijab...",
-        "date": "26/10/2024 • 09:47",
+        {
+          "points": "+240",
+          "action": "Online Order",
+          "description": "Suite 2 pieces, hijab...",
+          "date": "26/10/2024 • 09:47",
         "icon": "shopping_cart"
       },
       {
