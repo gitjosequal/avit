@@ -1,69 +1,108 @@
 <?php
 namespace Josequal\APIMobile\Setup;
 
-use Magento\Customer\Model\Customer;
-use Magento\Eav\Model\Config as EavConfig;
-use Magento\Eav\Setup\EavSetupFactory;
+use Magento\Framework\Setup\UpgradeDataInterface;
 use Magento\Framework\Setup\ModuleContextInterface;
 use Magento\Framework\Setup\ModuleDataSetupInterface;
-use Magento\Framework\Setup\UpgradeDataInterface;
-use Magento\Eav\Model\Entity\Attribute\ScopedAttributeInterface;
 
+/**
+ * Upgrade data for Custom Points System
+ */
 class UpgradeData implements UpgradeDataInterface
 {
-    private EavSetupFactory $eavSetupFactory;
-    private EavConfig $eavConfig;
-
-    public function __construct(
-        EavSetupFactory $eavSetupFactory,
-        EavConfig $eavConfig
-    ) {
-        $this->eavSetupFactory = $eavSetupFactory;
-        $this->eavConfig = $eavConfig;
-    }
-
+    /**
+     * {@inheritdoc}
+     */
     public function upgrade(ModuleDataSetupInterface $setup, ModuleContextInterface $context)
     {
         $setup->startSetup();
 
-        if (version_compare($context->getVersion(), '1.0.7', '<')) {
-            $eavSetup = $this->eavSetupFactory->create(['setup' => $setup]);
-
-            $attributes = [
-                'mobile_number' => 'Mobile Number',
-                'dial_code'     => 'Dial Code',
-                'country_code'  => 'Country Code'
-            ];
-
-            foreach ($attributes as $code => $label) {
-                if (!$eavSetup->getAttributeId(Customer::ENTITY, $code)) {
-                    $eavSetup->addAttribute(
-                        Customer::ENTITY,
-                        $code,
-                        [
-                            'type'         => 'varchar',
-                            'label'        => $label,
-                            'input'        => 'text',
-                            'required'     => false,
-                            'visible'      => true,
-                            'user_defined' => true,
-                            'position'     => 1000,
-                            'system'       => 0,
-                            'global'       => ScopedAttributeInterface::SCOPE_GLOBAL
-                        ]
-                    );
-
-                    $attribute = $this->eavConfig->getAttribute(Customer::ENTITY, $code);
-                    $attribute->setData('used_in_forms', [
-                        'adminhtml_customer',
-                        'customer_account_create',
-                        'customer_account_edit'
-                    ]);
-                    $attribute->save();
-                }
-            }
+        if (version_compare($context->getVersion(), '1.0.0', '==')) {
+            $this->addSampleData($setup);
         }
 
         $setup->endSetup();
+    }
+
+    /**
+     * Add sample data for testing
+     *
+     * @param ModuleDataSetupInterface $setup
+     * @return void
+     */
+    private function addSampleData(ModuleDataSetupInterface $setup)
+    {
+        $connection = $setup->getConnection();
+
+        // Add sample points data
+        $samplePoints = [
+            [
+                'customer_id' => 1,
+                'points' => 100,
+                'action' => 'signup',
+                'description' => 'Welcome bonus for new customer',
+                'created_at' => date('Y-m-d H:i:s')
+            ],
+            [
+                'customer_id' => 1,
+                'points' => 50,
+                'action' => 'review',
+                'description' => 'Product review bonus',
+                'created_at' => date('Y-m-d H:i:s')
+            ],
+            [
+                'customer_id' => 1,
+                'points' => 200,
+                'action' => 'order',
+                'description' => 'Order completion bonus',
+                'created_at' => date('Y-m-d H:i:s')
+            ],
+            [
+                'customer_id' => 2,
+                'points' => 150,
+                'action' => 'signup',
+                'description' => 'Welcome bonus for new customer',
+                'created_at' => date('Y-m-d H:i:s')
+            ],
+            [
+                'customer_id' => 2,
+                'points' => 75,
+                'action' => 'order',
+                'description' => 'Order completion bonus',
+                'created_at' => date('Y-m-d H:i:s')
+            ]
+        ];
+
+        foreach ($samplePoints as $point) {
+            $connection->insert($setup->getTable('custom_points'), $point);
+        }
+
+        // Add sample balance data
+        $sampleBalance = [
+            [
+                'customer_id' => 1,
+                'total_points' => 350,
+                'used_points' => 0,
+                'available_points' => 350,
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ],
+            [
+                'customer_id' => 2,
+                'total_points' => 225,
+                'used_points' => 0,
+                'available_points' => 225,
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ]
+        ];
+
+        foreach ($sampleBalance as $balance) {
+            $connection->insertOnDuplicate(
+                $setup->getTable('custom_points_balance'),
+                $balance,
+                ['total_points', 'used_points', 'available_points', 'updated_at']
+            );
+        }
     }
 }

@@ -28,6 +28,7 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
     protected $helper;
     protected $_rewardsQuote;
     protected $objectManager;
+    protected $customPointsModel;
 
     public function __construct(
         \Magento\Framework\Model\Context $context,
@@ -49,12 +50,23 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         //new
         $this->objectManager = \Magento\Framework\App\ObjectManager::getInstance();
 
-        $this->pointsModel = $this->objectManager->get('\Amasty\Rewards\Model\Rewards');
-        $this->_rewardsQuote = $this->objectManager->get('\Amasty\Rewards\Model\Quote');
+        // Check if Amasty Rewards is available
+        if (class_exists('\Amasty\Rewards\Model\Rewards')) {
+            $this->pointsModel = $this->objectManager->get('\Amasty\Rewards\Model\Rewards');
+            $this->_rewardsQuote = $this->objectManager->get('\Amasty\Rewards\Model\Quote');
+            $this->helper = $this->objectManager->get('\Amasty\Rewards\Helper\Data');
+        } else {
+            $this->pointsModel = null;
+            $this->_rewardsQuote = null;
+            $this->helper = null;
+        }
+
+        // Initialize custom points model
+        $this->customPointsModel = $this->objectManager->get('\Josequal\APIMobile\Model\CustomPoints');
+
         $this->_registry = $registry;
         $this->quoteRepository = $this->objectManager->get('\Magento\Quote\Api\CartRepositoryInterface');;
         $this->logger = $this->objectManager->get('\Psr\Log\LoggerInterface\Proxy');
-        $this->helper = $this->objectManager->get('\Amasty\Rewards\Helper\Data');
         $this->_checkoutSession = $this->objectManager->get('\Magento\Checkout\Model\Session');
         $this->cart = $this->objectManager->get('\Josequal\APIMobile\Model\V1\Cart');
 
@@ -70,7 +82,15 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         $info = $this->successStatus('Points Total');
 
         $customerId = $this->customerSession->getCustomerId();
-        $points = (int) $this->pointsModel->getPoints($customerId);
+
+        // Use custom points system if Amasty Rewards is not available
+        if ($this->pointsModel === null) {
+            $points = $this->customPointsModel->getCustomerPoints($customerId);
+            $pointsHistory = $this->customPointsModel->getCustomerPointsHistory($customerId);
+        } else {
+            $points = (int) $this->pointsModel->getPoints($customerId);
+            $pointsHistory = $this->getPointsHistory($customerId);
+        }
 
         // Get customer information
         $customer = $this->objectManager->get('\Magento\Customer\Model\CustomerFactory')->create()->load($customerId);
@@ -80,9 +100,6 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         $nextLevelPoints = $this->getNextLevelPoints($loyaltyLevel);
         $pointsToNextLevel = $nextLevelPoints - $points;
 
-        // Get points history
-        $pointsHistory = $this->getPointsHistory($customerId);
-
         $info['data'] = [
             'points' => $points,
             'customer_name' => $customer->getFirstname() . ' ' . $customer->getLastname(),
@@ -90,7 +107,8 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
             'next_level_points' => $nextLevelPoints,
             'points_to_next_level' => $pointsToNextLevel,
             'progress_percentage' => $this->calculateProgressPercentage($points, $nextLevelPoints),
-            'points_history' => $pointsHistory
+            'points_history' => $pointsHistory,
+            'system_type' => $this->pointsModel === null ? 'custom' : 'amasty'
         ];
 
         return $info;
@@ -150,6 +168,11 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
      * @return array
      */
     private function getPointsHistory($customerId) {
+        // Check if Amasty Rewards is available
+        if ($this->pointsModel === null) {
+            return [];
+        }
+
         $db = $this->objectManager->get('Magento\Framework\App\ResourceConnection');
 
         $select = $db->getConnection()->select()
@@ -235,8 +258,16 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         $data['points'] = isset($data['points']) ? (int) $data['points'] : 0;
 
         $cartQuote = $this->_checkoutSession->getQuote();
-        $usedPoints = $this->helper->roundPoints($data['points']);
-        $pointsLeft = $this->pointsModel->getPoints($this->customerSession->getCustomerId());
+        $customerId = $this->customerSession->getCustomerId();
+
+        // Use custom points system if Amasty Rewards is not available
+        if ($this->pointsModel === null) {
+            $pointsLeft = $this->customPointsModel->getCustomerPoints($customerId);
+            $usedPoints = $data['points'];
+        } else {
+            $usedPoints = $this->helper->roundPoints($data['points']);
+            $pointsLeft = $this->pointsModel->getPoints($customerId);
+        }
         if($pointsLeft <= 0){
             return $this->errorStatus(["You don't have points to apply"]);
         }
@@ -262,18 +293,28 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
                 $itemsCount = $cartQuote->getItemsCount();
                 if ($itemsCount) {
                     $cartQuote->getShippingAddress()->setCollectShippingRates(true);
-                    $cartQuote->setData('amrewards_point', $usedPoints);
+
+                    // Use custom points system if Amasty Rewards is not available
+                    if ($this->pointsModel === null) {
+                        $this->customPointsModel->usePointsInCart($customerId, $cartQuote->getId(), $usedPoints);
+                        $cartQuote->setData('custom_points_used', $usedPoints);
+                    } else {
+                        $cartQuote->setData('amrewards_point', $usedPoints);
+                        $this->_rewardsQuote->addReward(
+                            $cartQuote->getId(),
+                            $cartQuote->getData('amrewards_point')
+                        );
+                    }
 
                     $cartQuote->setDataChanges(true);
                     $cartQuote->collectTotals();
-                    $this->_rewardsQuote->addReward(
-                        $cartQuote->getId(),
-                        $cartQuote->getData('amrewards_point')
-                    );
                     $this->quoteRepository->save($cartQuote);
                     $msg = __('You used %1 point(s)', $data['points']);
-                    $totals = $this->objectManager->get('\Magento\Quote\Model\Quote\Address\Total');
-                    $this->pointsModel->calculateDiscount($cartQuote->getItems(), $totals, $data['points']);
+
+                    if ($this->pointsModel !== null) {
+                        $totals = $this->objectManager->get('\Magento\Quote\Model\Quote\Address\Total');
+                        $this->pointsModel->calculateDiscount($cartQuote->getItems(), $totals, $data['points']);
+                    }
                 }else{
                     return $this->errorStatus(["Cart is empty"]);
                 }
@@ -281,16 +322,23 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
                 $itemsCount = $cartQuote->getItemsCount();
                 if ($itemsCount) {
                     $cartQuote->getShippingAddress()->setCollectShippingRates(true);
-                    $cartQuote->setData('amrewards_point', 0);
+
+                    // Use custom points system if Amasty Rewards is not available
+                    if ($this->pointsModel === null) {
+                        $this->customPointsModel->removePointsFromCart($cartQuote->getId());
+                        $cartQuote->setData('custom_points_used', 0);
+                    } else {
+                        $cartQuote->setData('amrewards_point', 0);
+                        $this->_rewardsQuote->addReward(
+                            $cartQuote->getId(),
+                            0
+                        );
+                    }
+
                     $cartQuote->setDataChanges(true);
                     $cartQuote->collectTotals();
                 }
                 $this->quoteRepository->save($cartQuote);
-
-                $this->_rewardsQuote->addReward(
-                    $cartQuote->getId(),
-                    0
-                );
                 $msg = 'You Canceled Reward';
             }
         } catch (\Magento\Framework\Exception\LocalizedException $e) {
@@ -315,11 +363,27 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         $notificationController = $this->objectManager->get('Josequal\APIMobile\Controller\Adminhtml\Notification\Save');
         $customerFactory = $this->objectManager->get('\Magento\Customer\Model\CustomerFactory')->create();
 
+        // Use custom points system if Amasty Rewards is not available
+        if ($this->pointsModel === null) {
+            $table = 'custom_points_balance';
+            $pointsField = 'available_points';
+        } else {
+            $table = 'amasty_rewards_rewards';
+            $pointsField = 'SUM(amount) as points';
+        }
+
         $select = $db->getConnection()->select()
             ->from(
-                'amasty_rewards_rewards',
-                ['SUM(amount) as points','customer_id']
-            )->where('customer_id!=0')->group('customer_id');
+                $table,
+                $this->pointsModel === null ? ['available_points as points', 'customer_id'] : ['SUM(amount) as points','customer_id']
+            )->where('customer_id!=0');
+
+        if ($this->pointsModel === null) {
+            // For custom points, we already have the balance
+        } else {
+            $select->group('customer_id');
+        }
+
         $results = $db->getConnection()->fetchAll($select);
 
         $tokens = [];

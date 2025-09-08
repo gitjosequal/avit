@@ -327,6 +327,45 @@ curl -X GET https://avit.josequal.net/apimobile/cart/points
 }
 ```
 
+### **Test 11: حالة عدم وجود Amasty Rewards**
+
+إذا لم يكن نظام Amasty Rewards مثبتاً، ستظهر الرسالة التالية:
+
+```bash
+curl -X GET https://avit.josequal.net/apimobile/cart/points \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+**Expected Response:**
+```json
+{
+  "status": false,
+  "message": "Points system is not available. Please install Amasty Rewards extension.",
+  "data": []
+}
+```
+
+### **Test 12: تطبيق النقاط بدون Amasty Rewards**
+
+```bash
+curl -X POST https://avit.josequal.net/apimobile/cart/apply-points \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "points": 100,
+    "remove": 0
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "status": false,
+  "message": "Points system is not available. Please install Amasty Rewards extension.",
+  "data": []
+}
+```
+
 ## 📱 اختبار من Postman
 
 ### **1. إنشاء Collection جديد**
