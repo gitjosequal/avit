@@ -142,4 +142,26 @@
         </resources>
     </route>
 
+    <!-- Points APIs -->
+    <route url="/apimobile/cart/points" method="GET">
+        <service class="Josequal\APIMobile\Controller\Cart\Points" method="execute"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+    </route>
+
+    <route url="/apimobile/cart/apply-points" method="POST">
+        <service class="Josequal\APIMobile\Controller\Cart\ApplyPoints" method="execute"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+    </route>
+
+    <route url="/apimobile/cart/points-reminder" method="POST">
+        <service class="Josequal\APIMobile\Controller\Cart\PointsReminder" method="execute"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
 </routes>
