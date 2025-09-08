@@ -51,7 +51,7 @@ curl -X GET https://avit.josequal.net/apimobile/cart/points \
     "points_history": [
       {
         "points": "+240",
-        "action": "Online Order",
+        "action": "Online Order"
         "description": "Suite 2 pieces, hijab...",
         "date": "26/10/2024 • 09:47",
         "icon": "shopping_cart"
