@@ -1,0 +1,24 @@
+{
+    "customer_account_deletion": {
+        "column": {
+            "entity_id": true,
+            "customer_id": true,
+            "deletion_requested_at": true,
+            "scheduled_deletion_at": true,
+            "status": true,
+            "reason": true,
+            "cancelled_at": true,
+            "deleted_at": true
+        },
+        "index": {
+            "CUSTOMER_ACCOUNT_DELETION_CUSTOMER_ID": true,
+            "CUSTOMER_ACCOUNT_DELETION_STATUS": true,
+            "CUSTOMER_ACCOUNT_DELETION_SCHEDULED_DELETION_AT": true,
+            "CUSTOMER_ACCOUNT_DELETION_ENTITY_ID": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "CUSTOMER_ACCOUNT_DELETION_CUSTOMER_ID_CUSTOMER_ENTITY_ENTITY_ID": true
+        }
+    }
+}

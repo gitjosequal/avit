@@ -1,0 +1,106 @@
+<?php
+/** @var \Josequal\DataImportExport\Block\Adminhtml\Categories\Index $block */
+?>
+<div class="josequal-dataimportexport-categories">
+    <div class="page-main-actions">
+        <div class="page-actions">
+            <div class="page-actions-buttons">
+                <button type="button" class="action-primary" id="import-categories-btn">
+                    <span>Import Categories</span>
+                </button>
+                <button type="button" class="action-secondary" id="export-categories-btn">
+                    <span>Export Categories</span>
+                </button>
+                <button type="button" class="action-secondary" id="download-sample-btn">
+                    <span>Download Sample File</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin__data-grid-outer-wrap">
+        <div class="admin__data-grid-wrap">
+            <div class="admin__data-grid">
+                <div class="admin__data-grid-header">
+                    <h2>Categories Import/Export</h2>
+                </div>
+
+                <div class="admin__data-grid-content">
+                    <div class="import-section" style="display: none;">
+                        <h3>Import Categories</h3>
+                        <form id="import-form" enctype="multipart/form-data">
+                            <div class="admin__field">
+                                <label class="admin__field-label" for="import_file">
+                                    <span>Select File</span>
+                                </label>
+                                <div class="admin__field-control">
+                                    <input type="file" id="import_file" name="import_file" accept=".csv,.xlsx,.xls" required />
+                                    <small>Supported formats: CSV, XLSX, XLS</small>
+                                </div>
+                            </div>
+                            <div class="admin__field">
+                                <div class="admin__field-control">
+                                    <button type="submit" class="action-primary">
+                                        <span>Start Import</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="export-section" style="display: none;">
+                        <h3>Export Categories</h3>
+                        <form id="export-form">
+                            <div class="admin__field">
+                                <label class="admin__field-label" for="export_format">
+                                    <span>Export Format</span>
+                                </label>
+                                <div class="admin__field-control">
+                                    <select id="export_format" name="format">
+                                        <option value="xlsx">Excel (XLSX)</option>
+                                        <option value="csv">CSV</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="admin__field">
+                                <div class="admin__field-control">
+                                    <button type="submit" class="action-primary">
+                                        <span>Start Export</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="info-section">
+                        <h3>File Format Information</h3>
+                        <p>The import file should contain the following columns:</p>
+                        <ul>
+                            <li><strong>name</strong> - Category Name (required)</li>
+                            <li><strong>description</strong> - Category Description</li>
+                            <li><strong>parent_id</strong> - Parent Category ID</li>
+                            <li><strong>is_active</strong> - Active Status (1=Active, 0=Inactive)</li>
+                            <li><strong>position</strong> - Display Position</li>
+                            <li><strong>url_key</strong> - URL Key for SEO</li>
+                        </ul>
+
+                        <h4>Supported Import Formats:</h4>
+                        <ul>
+                            <li><strong>CSV</strong> - Comma-separated values file</li>
+                            <li><strong>XLSX</strong> - Excel 2007+ file format</li>
+                            <li><strong>XLS</strong> - Excel 97-2003 file format</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/x-magento-init">
+{
+    ".josequal-dataimportexport-categories": {
+        "Josequal_DataImportExport/js/categories/index": {}
+    }
+}
+</script>

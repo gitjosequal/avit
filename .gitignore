@@ -1,0 +1,44 @@
+# ==== OS / Editors ====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ==== Composer / PHP ====
+/vendor/            
+
+# ==== Magento config ====
+/app/etc/env.php   
+# DO COMMIT: app/etc/config.php 
+
+# ==== Magento generated / cache ====
+/generated/*
+!/generated/.htaccess
+
+/var/*
+!/var/.htaccess
+/var/cache/*
+/var/page_cache/*
+/var/session/*
+/var/log/*
+/var/report/*
+/var/view_preprocessed/*
+
+/pub/static/*
+!/pub/static/.htaccess
+
+/pub/media/*
+!/pub/media/.htaccess
+
+/node_modules/
+/dev/tests/integration/tmp/*
+/phpserver/*
+
+/auth.json
+/.php-cs-fixer.cache
+/.php_cs.cache
+/.tools/
+/satisfiable
+/sm_ecomus_quickstart_pl_m2.4.8_v1.1.0.zip
