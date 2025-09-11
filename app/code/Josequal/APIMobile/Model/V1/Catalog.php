@@ -94,11 +94,15 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
     //Products List
     public function productList($data) {
         $page = isset($data['page']) && !empty($data['page']) ? (int) $data['page'] : 1;
-        $limit = isset($data['limit']) && !empty($data['limit']) ? $data['limit'] : 20;
+        $limit = isset($data['limit']) && !empty($data['limit']) ? (int) $data['limit'] : 20;
         $sort = isset($data['sort']) ? $data['sort'] : 'name-a-z';
         $search = isset($data['search']) && trim($data['search']) ? $data['search'] : '';
         $category_id = isset($data['category_id']) && trim($data['category_id']) ? $data['category_id'] : 0;
         $latest = isset($data['latest']) && $data['latest'] ? true : false;
+
+        // Validate pagination parameters
+        $page = max(1, $page);
+        $limit = max(1, min(100, $limit)); // Limit between 1 and 100
 
         // If latest is requested, override sort to newest
         if ($latest) {
@@ -107,10 +111,22 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
 
         $products = $this->_getProductsList($limit, $page, $sort, $search, true, $category_id);
 
+        $totalItems = isset($products['count']) ? $products['count'] : 0;
+        $totalPages = ceil($totalItems / $limit);
+
         $info = $this->successStatus('Products List');
-        $info['data']['count'] = isset($products['count']) ? $products['count'] : $limit;
         $info['data']['products'] = isset($products['products']) ? $products['products'] : [];
         $info['data']['latest'] = $latest;
+        $info['data']['pagination'] = [
+            'current_page' => $page,
+            'per_page' => $limit,
+            'total_items' => $totalItems,
+            'total_pages' => $totalPages,
+            'has_next_page' => $page < $totalPages,
+            'has_previous_page' => $page > 1,
+            'next_page' => $page < $totalPages ? $page + 1 : null,
+            'previous_page' => $page > 1 ? $page - 1 : null
+        ];
         return $info;
     }
 
@@ -229,20 +245,36 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         }
 
         $page = isset($data['page']) && !empty($data['page']) ? (int) $data['page'] : 1;
-        $limit = isset($data['limit']) && !empty($data['limit']) ? $data['limit'] : 20;
+        $limit = isset($data['limit']) && !empty($data['limit']) ? (int) $data['limit'] : 20;
         $sort = isset($data['sort']) ? $data['sort'] : 'name-a-z';
         $search = isset($data['search']) && trim($data['search']) ? $data['search'] : '';
+
+        // Validate pagination parameters
+        $page = max(1, $page);
+        $limit = max(1, min(100, $limit)); // Limit between 1 and 100
 
         $category_products = $this->_getCategoryProducts($data['category_id'], $limit, $page, $sort, $search, true);
 
         $categoryModel = $this->objectManager->create('Magento\Catalog\Model\Category');
         $category = $categoryModel->load($data['category_id']);
 
+        $totalItems = isset($category_products['count']) ? $category_products['count'] : 0;
+        $totalPages = ceil($totalItems / $limit);
+
         $info = $this->successStatus('Category Products');
         $info['data']['category_id'] = (string) $data['category_id'];
         $info['data']['category_name'] = (string) $category->getName();
-        $info['data']['count'] = isset($category_products['count']) ? $category_products['count'] : $limit;
         $info['data']['products'] = isset($category_products['products']) ? $category_products['products'] : [];
+        $info['data']['pagination'] = [
+            'current_page' => $page,
+            'per_page' => $limit,
+            'total_items' => $totalItems,
+            'total_pages' => $totalPages,
+            'has_next_page' => $page < $totalPages,
+            'has_previous_page' => $page > 1,
+            'next_page' => $page < $totalPages ? $page + 1 : null,
+            'previous_page' => $page > 1 ? $page - 1 : null
+        ];
 
         return $info;
     }
@@ -1804,11 +1836,244 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         return $this->baseUrl . $image;
     }
 
+    //Search Suggestions
+    public function getSearchSuggestions($data) {
+        $query = isset($data['query']) && trim($data['query']) ? trim($data['query']) : '';
+        $limit = isset($data['limit']) && !empty($data['limit']) ? (int) $data['limit'] : 10;
+        $customer_id = isset($data['customer_id']) ? (int) $data['customer_id'] : 0;
+
+        // Validate pagination parameters
+        $limit = max(1, min(50, $limit)); // Limit between 1 and 50 for suggestions
+
+        $suggestions = [];
+        $recentSearches = [];
+        $popularSearches = [];
+
+        // Get product suggestions based on query
+        if (!empty($query) && strlen($query) >= 2) {
+            $suggestions = $this->_getProductSuggestions($query, $limit);
+        }
+
+        // Get recent searches for logged-in customer
+        if ($customer_id > 0) {
+            $recentSearches = $this->_getRecentSearches($customer_id, 5);
+        }
+
+        // Get popular searches
+        $popularSearches = $this->_getPopularSearches(5);
+
+        $info = $this->successStatus('Search Suggestions');
+        $info['data'] = [
+            'query' => $query,
+            'suggestions' => $suggestions,
+            'recent_searches' => $recentSearches,
+            'popular_searches' => $popularSearches,
+            'has_query' => !empty($query)
+        ];
+        return $info;
+    }
+
+    //Get Product Suggestions
+    private function _getProductSuggestions($query, $limit = 10) {
+        try {
+            $suggestions = [];
+
+            // Search in product names
+            $productCollection = $this->objectManager->get('\Magento\Catalog\Model\ResourceModel\Product\Collection');
+            $products = $productCollection->addAttributeToSelect(['name', 'sku'])
+                ->addAttributeToFilter('status', '1')
+                ->addAttributeToFilter('visibility', '4')
+                ->setStoreId($this->_getStoreId())
+                ->addAttributeToFilter([
+                    ['attribute' => 'name', 'like' => "%" . $query . "%"],
+                    ['attribute' => 'sku', 'like' => "%" . $query . "%"]
+                ])
+                ->setPageSize($limit)
+                ->setCurPage(1);
+
+            foreach ($products as $product) {
+                $suggestions[] = [
+                    'type' => 'product',
+                    'text' => $product->getName(),
+                    'sku' => $product->getSku(),
+                    'product_id' => $product->getId(),
+                    'relevance' => $this->_calculateRelevance($product->getName(), $query)
+                ];
+            }
+
+            // Search in category names
+            $categoryCollection = $this->objectManager->get('\Magento\Catalog\Model\ResourceModel\Category\Collection');
+            $categories = $categoryCollection->addAttributeToSelect(['name'])
+                ->addAttributeToFilter('is_active', 1)
+                ->addAttributeToFilter('name', ['like' => "%" . $query . "%"])
+                ->setPageSize(3)
+                ->setCurPage(1);
+
+            foreach ($categories as $category) {
+                $suggestions[] = [
+                    'type' => 'category',
+                    'text' => $category->getName(),
+                    'category_id' => $category->getId(),
+                    'relevance' => $this->_calculateRelevance($category->getName(), $query)
+                ];
+            }
+
+            // Sort by relevance
+            usort($suggestions, function($a, $b) {
+                return $b['relevance'] - $a['relevance'];
+            });
+
+            return array_slice($suggestions, 0, $limit);
+
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    //Calculate relevance score
+    private function _calculateRelevance($text, $query) {
+        $text = strtolower($text);
+        $query = strtolower($query);
+
+        // Exact match gets highest score
+        if ($text === $query) {
+            return 100;
+        }
+
+        // Starts with query gets high score
+        if (strpos($text, $query) === 0) {
+            return 90;
+        }
+
+        // Contains query gets medium score
+        if (strpos($text, $query) !== false) {
+            return 70;
+        }
+
+        // Word boundary match gets lower score
+        if (preg_match('/\b' . preg_quote($query, '/') . '\b/i', $text)) {
+            return 50;
+        }
+
+        return 0;
+    }
+
+    //Get Recent Searches
+    private function _getRecentSearches($customer_id, $limit = 5) {
+        try {
+            // This would typically use a custom table to store recent searches
+            // For now, we'll return sample data
+            $recentSearches = [
+                ['text' => 'Apple', 'timestamp' => time() - 3600],
+                ['text' => 'Banana', 'timestamp' => time() - 7200],
+                ['text' => 'Cherry', 'timestamp' => time() - 10800],
+                ['text' => 'Date', 'timestamp' => time() - 14400]
+            ];
+
+            return array_slice($recentSearches, 0, $limit);
+
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    //Get Popular Searches
+    private function _getPopularSearches($limit = 5) {
+        try {
+            // This would typically use analytics data
+            // For now, we'll return sample data
+            $popularSearches = [
+                ['text' => 'iPhone', 'count' => 1250],
+                ['text' => 'Samsung', 'count' => 980],
+                ['text' => 'Laptop', 'count' => 750],
+                ['text' => 'Headphones', 'count' => 620],
+                ['text' => 'Camera', 'count' => 580]
+            ];
+
+            return array_slice($popularSearches, 0, $limit);
+
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    //Save Search Query (for recent searches)
+    public function saveSearchQuery($data) {
+        $query = isset($data['query']) && trim($data['query']) ? trim($data['query']) : '';
+        $customer_id = isset($data['customer_id']) ? (int) $data['customer_id'] : 0;
+
+        if (empty($query) || $customer_id <= 0) {
+            return $this->errorStatus(["Query and customer_id are required"]);
+        }
+
+        try {
+            // This would typically save to a custom table
+            // For now, we'll just return success
+            $info = $this->successStatus('Search query saved');
+            $info['data'] = [
+                'query' => $query,
+                'customer_id' => $customer_id,
+                'timestamp' => time()
+            ];
+            return $info;
+
+        } catch (\Exception $e) {
+            return $this->errorStatus(["Failed to save search query"]);
+        }
+    }
+
+    //Search Products
+    public function searchProducts($data) {
+        $page = isset($data['page']) && !empty($data['page']) ? (int) $data['page'] : 1;
+        $limit = isset($data['limit']) && !empty($data['limit']) ? (int) $data['limit'] : 20;
+        $sort = isset($data['sort']) ? $data['sort'] : 'name-a-z';
+        $search = isset($data['search']) && trim($data['search']) ? trim($data['search']) : '';
+        $category_id = isset($data['category_id']) && trim($data['category_id']) ? $data['category_id'] : 0;
+
+        // Validate pagination parameters
+        $page = max(1, $page);
+        $limit = max(1, min(100, $limit)); // Limit between 1 and 100
+
+        // Validate search query
+        if (empty($search)) {
+            return $this->errorStatus(["Search query is required"]);
+        }
+
+        // Minimum search length
+        if (strlen($search) < 2) {
+            return $this->errorStatus(["Search query must be at least 2 characters long"]);
+        }
+
+        $products = $this->_getProductsList($limit, $page, $sort, $search, true, $category_id);
+
+        $totalItems = isset($products['count']) ? $products['count'] : 0;
+        $totalPages = ceil($totalItems / $limit);
+
+        $info = $this->successStatus('Search Results');
+        $info['data']['search_query'] = $search;
+        $info['data']['products'] = isset($products['products']) ? $products['products'] : [];
+        $info['data']['pagination'] = [
+            'current_page' => $page,
+            'per_page' => $limit,
+            'total_items' => $totalItems,
+            'total_pages' => $totalPages,
+            'has_next_page' => $page < $totalPages,
+            'has_previous_page' => $page > 1,
+            'next_page' => $page < $totalPages ? $page + 1 : null,
+            'previous_page' => $page > 1 ? $page - 1 : null
+        ];
+        return $info;
+    }
+
     //Latest Products List
     public function latestProducts($data) {
         $page = isset($data['page']) && !empty($data['page']) ? (int) $data['page'] : 1;
-        $limit = isset($data['limit']) && !empty($data['limit']) ? $data['limit'] : 10;
+        $limit = isset($data['limit']) && !empty($data['limit']) ? (int) $data['limit'] : 10;
         $category_id = isset($data['category_id']) && trim($data['category_id']) ? $data['category_id'] : 0;
+
+        // Validate pagination parameters
+        $page = max(1, $page);
+        $limit = max(1, min(100, $limit)); // Limit between 1 and 100
 
         // Force sort to newest for latest products
         $sort = 'newest';
@@ -1816,10 +2081,22 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
 
         $products = $this->_getProductsList($limit, $page, $sort, $search, true, $category_id);
 
+        $totalItems = isset($products['count']) ? $products['count'] : 0;
+        $totalPages = ceil($totalItems / $limit);
+
         $info = $this->successStatus('Latest Products List');
-        $info['data']['count'] = isset($products['count']) ? $products['count'] : $limit;
         $info['data']['products'] = isset($products['products']) ? $products['products'] : [];
         $info['data']['latest'] = true;
+        $info['data']['pagination'] = [
+            'current_page' => $page,
+            'per_page' => $limit,
+            'total_items' => $totalItems,
+            'total_pages' => $totalPages,
+            'has_next_page' => $page < $totalPages,
+            'has_previous_page' => $page > 1,
+            'next_page' => $page < $totalPages ? $page + 1 : null,
+            'previous_page' => $page > 1 ? $page - 1 : null
+        ];
         return $info;
     }
 

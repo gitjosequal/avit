@@ -172,4 +172,41 @@
         </resources>
     </route>
 
+    <!-- Product APIs -->
+    <route url="/apimobile/product/latest" method="GET">
+        <service class="Josequal\APIMobile\Controller\Product\Latest" method="execute"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
+    <route url="/apimobile/product/search" method="GET">
+        <service class="Josequal\APIMobile\Controller\Product\Search" method="execute"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
+    <route url="/apimobile/category/products" method="GET">
+        <service class="Josequal\APIMobile\Controller\Category\Products" method="execute"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
+    <!-- Search Suggestions APIs -->
+    <route url="/apimobile/product/search-suggestions" method="GET">
+        <service class="Josequal\APIMobile\Controller\Product\SearchSuggestions" method="execute"/>
+        <resources>
+            <resource ref="anonymous"/>
+        </resources>
+    </route>
+
+    <route url="/apimobile/product/save-search" method="POST">
+        <service class="Josequal\APIMobile\Controller\Product\SaveSearch" method="execute"/>
+        <resources>
+            <resource ref="self"/>
+        </resources>
+    </route>
+
 </routes>
