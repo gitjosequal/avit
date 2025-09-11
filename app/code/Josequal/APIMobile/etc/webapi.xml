@@ -205,7 +205,7 @@
     <route url="/apimobile/product/save-search" method="POST">
         <service class="Josequal\APIMobile\Controller\Product\SaveSearch" method="execute"/>
         <resources>
-            <resource ref="self"/>
+            <resource ref="anonymous"/>
         </resources>
     </route>
 
