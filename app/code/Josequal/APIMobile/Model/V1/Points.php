@@ -95,6 +95,9 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         // Get customer information
         $customer = $this->objectManager->get('\Magento\Customer\Model\CustomerFactory')->create()->load($customerId);
 
+        // Get customer profile image
+        $customerImage = $this->getCustomerProfileImage($customer);
+
         // Determine loyalty level
         $loyaltyLevel = $this->getLoyaltyLevel($points);
         $nextLevelPoints = $this->getNextLevelPoints($loyaltyLevel);
@@ -103,6 +106,7 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
         $info['data'] = [
             'points' => $points,
             'customer_name' => $customer->getFirstname() . ' ' . $customer->getLastname(),
+            'customer_image' => $customerImage,
             'loyalty_level' => $loyaltyLevel,
             'next_level_points' => $nextLevelPoints,
             'points_to_next_level' => $pointsToNextLevel,
@@ -413,5 +417,67 @@ class Points extends \Josequal\APIMobile\Model\AbstractModel
 
 
 
+    /**
+     * Get customer profile image URL
+     *
+     * @param \Magento\Customer\Model\Customer $customer
+     * @return string
+     */
+    private function getCustomerProfileImage($customer) {
+        $baseUrl = $this->storeManager->getStore()->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_MEDIA);
+
+        // Try to get custom profile image attribute
+        $profileImage = $customer->getData('profile_image');
+
+        if ($profileImage && !empty($profileImage)) {
+            // Check if it's a full URL or just a path
+            if (strpos($profileImage, 'http') === 0) {
+                return $profileImage;
+            } else {
+                return $baseUrl . 'customer' . $profileImage;
+            }
+        }
+
+        // Try to get avatar attribute (if exists)
+        $avatar = $customer->getData('avatar');
+        if ($avatar && !empty($avatar)) {
+            if (strpos($avatar, 'http') === 0) {
+                return $avatar;
+            } else {
+                return $baseUrl . 'customer' . $avatar;
+            }
+        }
+
+        // Try to get from custom attributes
+        try {
+            $customerRepository = $this->objectManager->get('\Magento\Customer\Api\CustomerRepositoryInterface');
+            $customerData = $customerRepository->getById($customer->getId());
+
+            $profileImageAttr = $customerData->getCustomAttribute('profile_image');
+            if ($profileImageAttr && $profileImageAttr->getValue()) {
+                $imagePath = $profileImageAttr->getValue();
+                if (strpos($imagePath, 'http') === 0) {
+                    return $imagePath;
+                } else {
+                    return $baseUrl . 'customer' . $imagePath;
+                }
+            }
+
+            $avatarAttr = $customerData->getCustomAttribute('avatar');
+            if ($avatarAttr && $avatarAttr->getValue()) {
+                $imagePath = $avatarAttr->getValue();
+                if (strpos($imagePath, 'http') === 0) {
+                    return $imagePath;
+                } else {
+                    return $baseUrl . 'customer' . $imagePath;
+                }
+            }
+        } catch (\Exception $e) {
+            // Continue to default image
+        }
+
+        // Return default profile image
+        return $baseUrl . 'default_profile.png';
+    }
 
 }

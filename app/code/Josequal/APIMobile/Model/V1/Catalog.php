@@ -130,7 +130,7 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         return $info;
     }
 
-    public function _getProductsList($limit = 20, $page = 1, $sort = 'name-a-z', $search = '', $return_size = false, $category_id = 0) {
+    public function _getProductsList($limit = 20, $page = 1, $sort = 'name-a-z', $search = '', $return_size = false, $category_id = 0, $date = null, $min_price = null, $max_price = null, $rating = null, $product_type = null, $size = null, $availability = null) {
         $disallowedCategories = [];
 
         $search = trim($search);
@@ -172,6 +172,9 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
                 ['attribute' => 'sku','eq' => $search ]
             ]);
         }
+
+        // Apply filters
+        $this->_applyFilters($productsQuery, $date, $min_price, $max_price, $rating, $product_type, $size, $availability);
 
         $product_count = $productsQuery->getSize();
 
@@ -249,11 +252,20 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         $sort = isset($data['sort']) ? $data['sort'] : 'name-a-z';
         $search = isset($data['search']) && trim($data['search']) ? $data['search'] : '';
 
+        // Filter parameters (nullable)
+        $date = isset($data['date']) ? $data['date'] : null;
+        $min_price = isset($data['min_price']) ? (float) $data['min_price'] : null;
+        $max_price = isset($data['max_price']) ? (float) $data['max_price'] : null;
+        $rating = isset($data['rating']) ? (int) $data['rating'] : null;
+        $product_type = isset($data['product_type']) ? $data['product_type'] : null;
+        $size = isset($data['size']) ? $data['size'] : null;
+        $availability = isset($data['availability']) ? $data['availability'] : null;
+
         // Validate pagination parameters
         $page = max(1, $page);
         $limit = max(1, min(100, $limit)); // Limit between 1 and 100
 
-        $category_products = $this->_getCategoryProducts($data['category_id'], $limit, $page, $sort, $search, true);
+        $category_products = $this->_getCategoryProducts($data['category_id'], $limit, $page, $sort, $search, true, $date, $min_price, $max_price, $rating, $product_type, $size, $availability);
 
         $categoryModel = $this->objectManager->create('Magento\Catalog\Model\Category');
         $category = $categoryModel->load($data['category_id']);
@@ -265,6 +277,15 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         $info['data']['category_id'] = (string) $data['category_id'];
         $info['data']['category_name'] = (string) $category->getName();
         $info['data']['products'] = isset($category_products['products']) ? $category_products['products'] : [];
+        $info['data']['filters'] = [
+            'date' => $date,
+            'min_price' => $min_price,
+            'max_price' => $max_price,
+            'rating' => $rating,
+            'product_type' => $product_type,
+            'size' => $size,
+            'availability' => $availability
+        ];
         $info['data']['pagination'] = [
             'current_page' => $page,
             'per_page' => $limit,
@@ -279,7 +300,7 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         return $info;
     }
 
-    public function _getCategoryProducts($category_id, $limit = 20, $page = 1, $sort = 'name-a-z', $search = '', $return_size = false) {
+    public function _getCategoryProducts($category_id, $limit = 20, $page = 1, $sort = 'name-a-z', $search = '', $return_size = false, $date = null, $min_price = null, $max_price = null, $rating = null, $product_type = null, $size = null, $availability = null) {
         try {
             if (!$category_id) {
                 return $return_size ? ['products' => [], 'count' => 0] : [];
@@ -325,6 +346,13 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
                 } catch (\Exception $e) {
                     // Continue without search filter if there's an error
                 }
+            }
+
+            // Apply filters
+            try {
+                $this->_applyFilters($productsQuery, $date, $min_price, $max_price, $rating, $product_type, $size, $availability);
+            } catch (\Exception $e) {
+                // Continue without filters if there's an error
             }
 
             $product_count = 0;
@@ -2030,6 +2058,15 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         $search = isset($data['search']) && trim($data['search']) ? trim($data['search']) : '';
         $category_id = isset($data['category_id']) && trim($data['category_id']) ? $data['category_id'] : 0;
 
+        // Filter parameters (nullable)
+        $date = isset($data['date']) ? $data['date'] : null;
+        $min_price = isset($data['min_price']) ? (float) $data['min_price'] : null;
+        $max_price = isset($data['max_price']) ? (float) $data['max_price'] : null;
+        $rating = isset($data['rating']) ? (int) $data['rating'] : null;
+        $product_type = isset($data['product_type']) ? $data['product_type'] : null;
+        $size = isset($data['size']) ? $data['size'] : null;
+        $availability = isset($data['availability']) ? $data['availability'] : null;
+
         // Validate pagination parameters
         $page = max(1, $page);
         $limit = max(1, min(100, $limit)); // Limit between 1 and 100
@@ -2044,7 +2081,7 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
             return $this->errorStatus(["Search query must be at least 2 characters long"]);
         }
 
-        $products = $this->_getProductsList($limit, $page, $sort, $search, true, $category_id);
+        $products = $this->_getProductsList($limit, $page, $sort, $search, true, $category_id, $date, $min_price, $max_price, $rating, $product_type, $size, $availability);
 
         $totalItems = isset($products['count']) ? $products['count'] : 0;
         $totalPages = ceil($totalItems / $limit);
@@ -2052,6 +2089,15 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         $info = $this->successStatus('Search Results');
         $info['data']['search_query'] = $search;
         $info['data']['products'] = isset($products['products']) ? $products['products'] : [];
+        $info['data']['filters'] = [
+            'date' => $date,
+            'min_price' => $min_price,
+            'max_price' => $max_price,
+            'rating' => $rating,
+            'product_type' => $product_type,
+            'size' => $size,
+            'availability' => $availability
+        ];
         $info['data']['pagination'] = [
             'current_page' => $page,
             'per_page' => $limit,
@@ -2071,6 +2117,15 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         $limit = isset($data['limit']) && !empty($data['limit']) ? (int) $data['limit'] : 10;
         $category_id = isset($data['category_id']) && trim($data['category_id']) ? $data['category_id'] : 0;
 
+        // Filter parameters (nullable)
+        $date = isset($data['date']) ? $data['date'] : null;
+        $min_price = isset($data['min_price']) ? (float) $data['min_price'] : null;
+        $max_price = isset($data['max_price']) ? (float) $data['max_price'] : null;
+        $rating = isset($data['rating']) ? (int) $data['rating'] : null;
+        $product_type = isset($data['product_type']) ? $data['product_type'] : null;
+        $size = isset($data['size']) ? $data['size'] : null;
+        $availability = isset($data['availability']) ? $data['availability'] : null;
+
         // Validate pagination parameters
         $page = max(1, $page);
         $limit = max(1, min(100, $limit)); // Limit between 1 and 100
@@ -2079,7 +2134,7 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         $sort = 'newest';
         $search = '';
 
-        $products = $this->_getProductsList($limit, $page, $sort, $search, true, $category_id);
+        $products = $this->_getProductsList($limit, $page, $sort, $search, true, $category_id, $date, $min_price, $max_price, $rating, $product_type, $size, $availability);
 
         $totalItems = isset($products['count']) ? $products['count'] : 0;
         $totalPages = ceil($totalItems / $limit);
@@ -2087,6 +2142,15 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
         $info = $this->successStatus('Latest Products List');
         $info['data']['products'] = isset($products['products']) ? $products['products'] : [];
         $info['data']['latest'] = true;
+        $info['data']['filters'] = [
+            'date' => $date,
+            'min_price' => $min_price,
+            'max_price' => $max_price,
+            'rating' => $rating,
+            'product_type' => $product_type,
+            'size' => $size,
+            'availability' => $availability
+        ];
         $info['data']['pagination'] = [
             'current_page' => $page,
             'per_page' => $limit,
@@ -2267,4 +2331,90 @@ class Catalog extends \Josequal\APIMobile\Model\AbstractModel {
 
         return $imageObject;
     }
+
+    /**
+     * Apply filters to product collection
+     *
+     * @param \Magento\Catalog\Model\ResourceModel\Product\Collection $productsQuery
+     * @param string|null $date
+     * @param float|null $min_price
+     * @param float|null $max_price
+     * @param int|null $rating
+     * @param string|null $product_type
+     * @param string|null $size
+     * @param string|null $availability
+     * @return void
+     */
+    private function _applyFilters($productsQuery, $date = null, $min_price = null, $max_price = null, $rating = null, $product_type = null, $size = null, $availability = null) {
+
+        // Date filter (filter by creation date)
+        if ($date !== null && !empty($date)) {
+            try {
+                $dateFilter = date('Y-m-d', strtotime($date));
+                $productsQuery->addAttributeToFilter('created_at', ['gteq' => $dateFilter . ' 00:00:00']);
+            } catch (\Exception $e) {
+                // Continue without date filter if there's an error
+            }
+        }
+
+        // Price range filter
+        if ($min_price !== null && $min_price > 0) {
+            try {
+                $productsQuery->addAttributeToFilter('price', ['gteq' => $min_price]);
+            } catch (\Exception $e) {
+                // Continue without min price filter if there's an error
+            }
+        }
+
+        if ($max_price !== null && $max_price > 0) {
+            try {
+                $productsQuery->addAttributeToFilter('price', ['lteq' => $max_price]);
+            } catch (\Exception $e) {
+                // Continue without max price filter if there's an error
+            }
+        }
+
+        // Rating filter (filter by review rating)
+        if ($rating !== null && $rating > 0 && $rating <= 5) {
+            try {
+                // This would require custom implementation based on your review system
+                // For now, we'll skip rating filter as it requires complex joins
+                // $productsQuery->addAttributeToFilter('rating_summary', ['gteq' => $rating * 20]); // Assuming 5-star = 100
+            } catch (\Exception $e) {
+                // Continue without rating filter if there's an error
+            }
+        }
+
+        // Product type filter
+        if ($product_type !== null && !empty($product_type)) {
+            try {
+                $productsQuery->addAttributeToFilter('type_id', $product_type);
+            } catch (\Exception $e) {
+                // Continue without product type filter if there's an error
+            }
+        }
+
+        // Size filter
+        if ($size !== null && !empty($size)) {
+            try {
+                $productsQuery->addAttributeToFilter('size', $size);
+            } catch (\Exception $e) {
+                // Continue without size filter if there's an error
+            }
+        }
+
+        // Availability filter
+        if ($availability !== null && !empty($availability)) {
+            try {
+                if ($availability === 'in_stock') {
+                    $productsQuery->addAttributeToFilter('is_salable', 1);
+                } elseif ($availability === 'out_of_stock') {
+                    $productsQuery->addAttributeToFilter('is_salable', 0);
+                }
+            } catch (\Exception $e) {
+                // Continue without availability filter if there's an error
+            }
+        }
+    }
+
 }
